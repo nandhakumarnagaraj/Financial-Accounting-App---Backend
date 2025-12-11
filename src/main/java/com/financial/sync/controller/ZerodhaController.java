@@ -22,7 +22,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/zerodha")
 @RequiredArgsConstructor
-@CrossOrigin(origins = { "http://localhost:4200", "http://localhost:3000" })
 public class ZerodhaController {
 
     private final ZerodhaService zerodhaService;
