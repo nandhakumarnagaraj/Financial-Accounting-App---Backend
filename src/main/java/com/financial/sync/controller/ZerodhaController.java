@@ -34,18 +34,26 @@ public class ZerodhaController {
 
     @GetMapping("/auth")
     public ResponseEntity<Map<String, String>> getAuthorizationUrl() {
-        User currentUser = authService.getCurrentUser();
+        try {
+            log.info("Getting Zerodha authorization URL");
+            User currentUser = authService.getCurrentUser();
 
-        String state = UUID.randomUUID().toString();
+            String state = UUID.randomUUID().toString();
 
-        ZerodhaStateMapping mapping = new ZerodhaStateMapping();
-        mapping.setState(state);
-        mapping.setUserId(currentUser.getId());
-        zerodhaStateMappingRepository.save(mapping);
+            ZerodhaStateMapping mapping = new ZerodhaStateMapping();
+            mapping.setState(state);
+            mapping.setUserId(currentUser.getId());
+            zerodhaStateMappingRepository.save(mapping);
 
-        String authUrl = zerodhaService.getAuthorizationUrl(state);
+            String authUrl = zerodhaService.getAuthorizationUrl(state);
+            log.info("Zerodha auth URL generated successfully for user: {}", currentUser.getUsername());
 
-        return ResponseEntity.ok(Map.of("authorizationUrl", authUrl));
+            return ResponseEntity.ok(Map.of("authorizationUrl", authUrl));
+        } catch (Exception e) {
+            log.error("Error getting Zerodha auth URL: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Failed to generate authorization URL: " + e.getMessage()));
+        }
     }
 
     @GetMapping("/callback")
@@ -53,12 +61,16 @@ public class ZerodhaController {
             @RequestParam String request_token,
             @RequestParam String state) {
         try {
+            log.info("Handling Zerodha callback with state: {}", state);
+            
             ZerodhaStateMapping mapping = zerodhaStateMappingRepository.findById(state)
                     .orElseThrow(() -> new RuntimeException("Invalid state"));
 
             Long userId = mapping.getUserId();
+            log.info("Found user ID: {} for state: {}", userId, state);
 
             Map<String, String> tokens = zerodhaService.exchangeRequestTokenForAccessToken(request_token, apiSecret);
+            log.info("Successfully exchanged request token for access token");
 
             User user = userService.getUserById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
@@ -66,6 +78,7 @@ public class ZerodhaController {
             user.setZerodhaAccessToken(tokens.get("access_token"));
             user.setTokenExpiry(LocalDateTime.now().plusDays(1)); // Zerodha tokens are valid for 1 day
             userService.updateUser(user);
+            log.info("Zerodha tokens saved for user: {}", user.getUsername());
 
             zerodhaStateMappingRepository.deleteById(state);
 
@@ -79,43 +92,111 @@ public class ZerodhaController {
 
     @PostMapping("/holdings/sync")
     public ResponseEntity<SyncResponseDTO> syncHoldings() {
-        User currentUser = authService.getCurrentUser();
-        SyncResponseDTO response = zerodhaService.syncHoldings(currentUser);
-        return ResponseEntity.ok(response);
+        try {
+            log.info("Starting Zerodha holdings sync");
+            User currentUser = authService.getCurrentUser();
+            SyncResponseDTO response = zerodhaService.syncHoldings(currentUser);
+            log.info("Zerodha holdings sync completed: {}", response.getStatus());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error syncing holdings: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new SyncResponseDTO("FAILED", "Error syncing holdings: " + e.getMessage()));
+        }
     }
 
     @PostMapping("/positions/sync")
     public ResponseEntity<SyncResponseDTO> syncPositions() {
-        User currentUser = authService.getCurrentUser();
-        SyncResponseDTO response = zerodhaService.syncPositions(currentUser);
-        return ResponseEntity.ok(response);
+        try {
+            log.info("Starting Zerodha positions sync");
+            User currentUser = authService.getCurrentUser();
+            SyncResponseDTO response = zerodhaService.syncPositions(currentUser);
+            log.info("Zerodha positions sync completed: {}", response.getStatus());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error syncing positions: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new SyncResponseDTO("FAILED", "Error syncing positions: " + e.getMessage()));
+        }
     }
 
     @PostMapping("/orders/sync")
     public ResponseEntity<SyncResponseDTO> syncOrders() {
-        User currentUser = authService.getCurrentUser();
-        SyncResponseDTO response = zerodhaService.syncOrders(currentUser);
-        return ResponseEntity.ok(response);
+        try {
+            log.info("Starting Zerodha orders sync");
+            User currentUser = authService.getCurrentUser();
+            SyncResponseDTO response = zerodhaService.syncOrders(currentUser);
+            log.info("Zerodha orders sync completed: {}", response.getStatus());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error syncing orders: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                    .body(new SyncResponseDTO("FAILED", "Error syncing orders: " + e.getMessage()));
+        }
     }
 
     @GetMapping("/holdings")
     public ResponseEntity<List<ZerodhaHoldingDTO>> getHoldings() {
-        User currentUser = authService.getCurrentUser();
-        List<ZerodhaHoldingDTO> holdings = zerodhaService.getHoldings(currentUser);
-        return ResponseEntity.ok(holdings);
+        try {
+            log.info("Fetching Zerodha holdings");
+            User currentUser = authService.getCurrentUser();
+            List<ZerodhaHoldingDTO> holdings = zerodhaService.getHoldings(currentUser);
+            log.info("Retrieved {} holdings", holdings.size());
+            return ResponseEntity.ok(holdings);
+        } catch (Exception e) {
+            log.error("Error fetching holdings: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @GetMapping("/positions")
     public ResponseEntity<List<ZerodhaPositionDTO>> getPositions() {
-        User currentUser = authService.getCurrentUser();
-        List<ZerodhaPositionDTO> positions = zerodhaService.getPositions(currentUser);
-        return ResponseEntity.ok(positions);
+        try {
+            log.info("Fetching Zerodha positions");
+            User currentUser = authService.getCurrentUser();
+            List<ZerodhaPositionDTO> positions = zerodhaService.getPositions(currentUser);
+            log.info("Retrieved {} positions", positions.size());
+            return ResponseEntity.ok(positions);
+        } catch (Exception e) {
+            log.error("Error fetching positions: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @GetMapping("/orders")
     public ResponseEntity<List<ZerodhaOrderDTO>> getOrders() {
-        User currentUser = authService.getCurrentUser();
-        List<ZerodhaOrderDTO> orders = zerodhaService.getOrders(currentUser);
-        return ResponseEntity.ok(orders);
+        try {
+            log.info("Fetching Zerodha orders");
+            User currentUser = authService.getCurrentUser();
+            List<ZerodhaOrderDTO> orders = zerodhaService.getOrders(currentUser);
+            log.info("Retrieved {} orders", orders.size());
+            return ResponseEntity.ok(orders);
+        } catch (Exception e) {
+            log.error("Error fetching orders: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/connection-status")
+    public ResponseEntity<Map<String, Object>> getConnectionStatus() {
+        try {
+            User currentUser = authService.getCurrentUser();
+            boolean isConnected = currentUser.getZerodhaAccessToken() != null;
+            boolean tokenValid = false;
+            
+            if (isConnected && currentUser.getTokenExpiry() != null) {
+                tokenValid = currentUser.getTokenExpiry().isAfter(LocalDateTime.now());
+            }
+
+            return ResponseEntity.ok(Map.of(
+                "connected", isConnected,
+                "tokenValid", tokenValid,
+                "userId", currentUser.getZerodhaUserId() != null ? currentUser.getZerodhaUserId() : "",
+                "tokenExpiry", currentUser.getTokenExpiry() != null ? currentUser.getTokenExpiry().toString() : ""
+            ));
+        } catch (Exception e) {
+            log.error("Error checking connection status: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

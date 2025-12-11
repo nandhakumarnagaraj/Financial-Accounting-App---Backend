@@ -40,8 +40,12 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> 
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized")))
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setContentType("application/json");
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"" + authException.getMessage() + "\"}");
+                }))
             .authorizeHttpRequests(auth -> auth
                 // Preflight CORS – allow OPTIONS
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
@@ -49,11 +53,15 @@ public class SecurityConfig {
                 // Auth endpoints (signup/login) – open
                 .requestMatchers("/api/auth/**").permitAll()
 
-                // Xero callback – open
+                // Xero callback – open (OAuth callback doesn't have JWT)
                 .requestMatchers("/api/xero/callback").permitAll()
                 
-                // Zerodha callback – open
+                // Zerodha callback – open (OAuth callback doesn't have JWT)
                 .requestMatchers("/api/zerodha/callback").permitAll()
+
+                // Health check endpoints - open
+                .requestMatchers("/api/dashboard/health").permitAll()
+                .requestMatchers("/actuator/**").permitAll()
 
                 // Everything else needs JWT
                 .anyRequest().authenticated())
@@ -66,10 +74,16 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:4200", "http://localhost:3000"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedOrigins(Arrays.asList(
+            "http://localhost:4200", 
+            "http://localhost:3000",
+            "http://localhost:5173" // Vite default port
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("*"));
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
